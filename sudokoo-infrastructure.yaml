@@ -1,0 +1,362 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SUDOKOO - Complete Infrastructure for Sudoku Game with Camera Scanning'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'sudokoo'
+    Description: 'Name of the project (used for resource naming)'
+  
+  Environment:
+    Type: String
+    Default: 'prod'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: 'Environment name'
+  
+  DomainName:
+    Type: String
+    Default: ''
+    Description: 'Optional: Custom domain name (leave empty for CloudFront domain)'
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref DomainName, '']]
+
+Resources:
+  
+  # ===== S3 BUCKET FOR STATIC WEBSITE =====
+  WebsiteBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${ProjectName}-website-${Environment}-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: 'Enabled'
+      Tags:
+        - Key: 'Project'
+          Value: !Ref ProjectName
+        - Key: 'Environment'
+          Value: !Ref Environment
+
+  # ===== ORIGIN ACCESS CONTROL FOR CLOUDFRONT =====
+  OriginAccessControl:
+    Type: 'AWS::CloudFront::OriginAccessControl'
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${ProjectName}-OAC-${Environment}'
+        OriginAccessControlOriginType: 's3'
+        SigningBehavior: 'always'
+        SigningProtocol: 'sigv4'
+
+  # ===== CLOUDFRONT DISTRIBUTION =====
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '${ProjectName} Static Website - ${Environment}'
+        DefaultRootObject: 'index.html'
+        PriceClass: 'PriceClass_100'  # Use only US, Canada, Europe
+        
+        Origins:
+          - Id: 'S3Origin'
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+        
+        DefaultCacheBehavior:
+          TargetOriginId: 'S3Origin'
+          ViewerProtocolPolicy: 'redirect-to-https'
+          AllowedMethods: ['GET', 'HEAD', 'OPTIONS']
+          CachedMethods: ['GET', 'HEAD']
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: 'none'
+          DefaultTTL: 86400      # 1 day
+          MinTTL: 0
+          MaxTTL: 31536000       # 1 year
+        
+        # Custom error pages
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 404
+            ResponsePagePath: '/error.html'
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: '/error.html'
+            ErrorCachingMinTTL: 300
+        
+        Aliases: !If 
+          - HasCustomDomain
+          - [!Ref DomainName]
+          - !Ref 'AWS::NoValue'
+        
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref SSLCertificate
+            SslSupportMethod: 'sni-only'
+            MinimumProtocolVersion: 'TLSv1.2_2021'
+          - CloudFrontDefaultCertificate: true
+        
+        Tags:
+          - Key: 'Project'
+            Value: !Ref ProjectName
+          - Key: 'Environment'
+            Value: !Ref Environment
+
+  # ===== SSL CERTIFICATE (if custom domain) =====
+  SSLCertificate:
+    Type: 'AWS::CertificateManager::Certificate'
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: 'DNS'
+      Tags:
+        - Key: 'Project'
+          Value: !Ref ProjectName
+
+  # ===== S3 BUCKET POLICY (for CloudFront access) =====
+  BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'AllowCloudFrontServicePrincipal'
+            Effect: 'Allow'
+            Principal:
+              Service: 'cloudfront.amazonaws.com'
+            Action: 's3:GetObject'
+            Resource: !Sub '${WebsiteBucket}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # ===== IAM ROLE FOR LAMBDA =====
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ProjectName}-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      
+      Policies:
+        - PolicyName: 'BedrockInvokePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'bedrock:InvokeModel'
+                Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0'
+      
+      Tags:
+        - Key: 'Project'
+          Value: !Ref ProjectName
+
+  # ===== LAMBDA FUNCTION FOR SUDOKU SCANNING =====
+  SudokuScannerFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ProjectName}-scanner-${Environment}'
+      Runtime: 'nodejs18.x'
+      Handler: 'index.handler'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          NODE_ENV: !Ref Environment
+          PROJECT_NAME: !Ref ProjectName
+      
+      Code:
+        ZipFile: |
+          const { BedrockRuntimeClient, InvokeModelCommand } = require("@aws-sdk/client-bedrock-runtime");
+          
+          const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
+          
+          exports.handler = async (event) => {
+              console.log('Processing Sudoku scan request');
+              
+              try {
+                  // For now, return a sample response until we upload the real code
+                  return {
+                      statusCode: 200,
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Access-Control-Allow-Origin': '*',
+                          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                          'Access-Control-Allow-Headers': 'Content-Type'
+                      },
+                      body: JSON.stringify({
+                          success: false,
+                          error: 'Function deployed but code needs to be uploaded. See deployment guide.'
+                      })
+                  };
+              } catch (error) {
+                  console.error('Error:', error);
+                  return {
+                      statusCode: 500,
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Access-Control-Allow-Origin': '*'
+                      },
+                      body: JSON.stringify({
+                          success: false,
+                          error: 'Internal server error'
+                      })
+                  };
+              }
+          };
+      
+      Tags:
+        - Key: 'Project'
+          Value: !Ref ProjectName
+
+  # ===== API GATEWAY =====
+  ApiGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: !Sub '${ProjectName}-api-${Environment}'
+      Description: !Sub 'API for ${ProjectName} Sudoku Scanner'
+      EndpointConfiguration:
+        Types: ['REGIONAL']
+      
+      Tags:
+        - Key: 'Project'
+          Value: !Ref ProjectName
+
+  # ===== API GATEWAY RESOURCE =====
+  ScanSudokuResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: 'scan-sudoku'
+
+  # ===== API GATEWAY METHOD (POST) =====
+  ScanSudokuMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ScanSudokuResource
+      HttpMethod: 'POST'
+      AuthorizationType: 'NONE'
+      
+      Integration:
+        Type: 'AWS_PROXY'
+        IntegrationHttpMethod: 'POST'
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SudokuScannerFunction.Arn}/invocations'
+      
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseHeaders:
+            'Access-Control-Allow-Origin': true
+            'Access-Control-Allow-Methods': true
+            'Access-Control-Allow-Headers': true
+
+  # ===== API GATEWAY METHOD (OPTIONS for CORS) =====
+  ScanSudokuOptionsMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ScanSudokuResource
+      HttpMethod: 'OPTIONS'
+      AuthorizationType: 'NONE'
+      
+      Integration:
+        Type: 'MOCK'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              'method.response.header.Access-Control-Allow-Origin': "'*'"
+              'method.response.header.Access-Control-Allow-Methods': "'POST,OPTIONS'"
+              'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            ResponseTemplates:
+              'application/json': ''
+        RequestTemplates:
+          'application/json': '{"statusCode": 200}'
+      
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseHeaders:
+            'Access-Control-Allow-Origin': true
+            'Access-Control-Allow-Methods': true
+            'Access-Control-Allow-Headers': true
+
+  # ===== LAMBDA PERMISSION FOR API GATEWAY =====
+  LambdaApiPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref SudokuScannerFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*'
+
+  # ===== API GATEWAY DEPLOYMENT =====
+  ApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn: 
+      - ScanSudokuMethod
+      - ScanSudokuOptionsMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+      StageName: !Ref Environment
+
+# ===== OUTPUTS =====
+Outputs:
+  WebsiteURL:
+    Description: 'CloudFront Distribution URL'
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Export:
+      Name: !Sub '${ProjectName}-website-url-${Environment}'
+
+  CustomDomainURL:
+    Condition: HasCustomDomain
+    Description: 'Custom Domain URL'
+    Value: !Sub 'https://${DomainName}'
+
+  S3BucketName:
+    Description: 'S3 Bucket Name for uploading files'
+    Value: !Ref WebsiteBucket
+    Export:
+      Name: !Sub '${ProjectName}-bucket-${Environment}'
+
+  ApiGatewayURL:
+    Description: 'API Gateway URL for camera scanning'
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/scan-sudoku'
+    Export:
+      Name: !Sub '${ProjectName}-api-url-${Environment}'
+
+  LambdaFunctionName:
+    Description: 'Lambda Function Name'
+    Value: !Ref SudokuScannerFunction
+
+  CloudFrontDistributionId:
+    Description: 'CloudFront Distribution ID'
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${ProjectName}-cf-distribution-${Environment}'
+
+  DistributionDomainName:
+    Description: 'CloudFront Distribution Domain Name'
+    Value: !GetAtt CloudFrontDistribution.DomainName

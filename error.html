@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found - SUDOKOO</title>
+    <meta name="description" content="The page you're looking for could not be found.">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .error-code {
+            font-size: 8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 0;
+            line-height: 1;
+            text-shadow: 2px 2px 0px var(--accent-color);
+        }
+
+        .error-title {
+            font-size: 2.5rem;
+            margin: 1rem 0;
+            color: var(--text-primary);
+        }
+
+        .error-description {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 500px;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .sudoku-emoji {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .error-code {
+                font-size: 6rem;
+            }
+            
+            .error-title {
+                font-size: 2rem;
+            }
+            
+            .error-description {
+                font-size: 1rem;
+            }
+            
+            .error-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">
+                <a href="/" style="color: inherit; text-decoration: none;">SUDOKOO</a>
+            </h1>
+            <p class="tagline">Challenge Your Mind</p>
+        </div>
+    </header>
+
+    <!-- Error Content -->
+    <main class="main-content">
+        <div class="container">
+            <div class="error-container">
+                <div class="sudoku-emoji">🧩</div>
+                <h1 class="error-code">404</h1>
+                <h2 class="error-title">Oops! Page Not Found</h2>
+                <p class="error-description">
+                    Looks like this page got lost in the puzzle! The page you're looking for doesn't exist or may have been moved.
+                </p>
+                
+                <div class="error-actions">
+                    <a href="/" class="btn btn-primary">
+                        🏠 Back to Game
+                    </a>
+                    <button onclick="history.back()" class="btn btn-secondary">
+                        ← Go Back
+                    </button>
+                </div>
+            </div>
+
+            <!-- Helpful Links -->
+            <section class="helpful-links" style="margin-top: 3rem; text-align: center;">
+                <h3 style="color: var(--text-primary); margin-bottom: 1rem;">While you're here...</h3>
+                <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                    <div style="padding: 1rem; background: var(--cell-empty); border-radius: 8px; max-width: 200px;">
+                        <h4 style="color: var(--primary-color); margin: 0 0 0.5rem 0;">🎮 Play Sudoku</h4>
+                        <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                            Challenge yourself with our interactive Sudoku puzzles
+                        </p>
+                    </div>
+                    <div style="padding: 1rem; background: var(--cell-empty); border-radius: 8px; max-width: 200px;">
+                        <h4 style="color: var(--primary-color); margin: 0 0 0.5rem 0;">📱 Mobile Friendly</h4>
+                        <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                            Play on any device, anywhere, anytime
+                        </p>
+                    </div>
+                    <div style="padding: 1rem; background: var(--cell-empty); border-radius: 8px; max-width: 200px;">
+                        <h4 style="color: var(--primary-color); margin: 0 0 0.5rem 0;">🧠 Multiple Levels</h4>
+                        <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                            Easy to Expert difficulty levels
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 SUDOKOO. Built with AWS by Tim for Solutions Architect Portfolio.</p>
+            <p>
+                <a href="/" class="footer-link">Home</a> |
+                <a href="#" class="footer-link">About</a> |
+                <a href="#" class="footer-link">GitHub</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Add some interactive elements
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click animation to buttons
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    const ripple = document.createElement('span');
+                    ripple.style.position = 'absolute';
+                    ripple.style.borderRadius = '50%';
+                    ripple.style.background = 'rgba(255,255,255,0.6)';
+                    ripple.style.transform = 'scale(0)';
+                    ripple.style.animation = 'ripple 0.6s linear';
+                    ripple.style.left = (e.clientX - e.target.offsetLeft) + 'px';
+                    ripple.style.top = (e.clientY - e.target.offsetTop) + 'px';
+                    
+                    this.style.position = 'relative';
+                    this.style.overflow = 'hidden';
+                    this.appendChild(ripple);
+                    
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 600);
+                });
+            });
+        });
+
+        // Add ripple animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes ripple {
+                to {
+                    transform: scale(4);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
