@@ -13,13 +13,14 @@ NC='\033[0m'
 
 echo -e "${BLUE}📦 Packaging Lambda Function...${NC}"
 
-# Create lambda directory if it doesn't exist
-mkdir -p lambda
+# Check if lambda directory exists
+if [ ! -d "lambda" ]; then
+    echo -e "${RED}❌ Lambda directory not found!${NC}"
+    exit 1
+fi
 
-# Copy function code
-echo -e "${YELLOW}📝 Copying function code...${NC}"
-cp lambda-scan-sudoku.js lambda/index.js
-cp package.json lambda/
+# Lambda code is already in place
+echo -e "${YELLOW}📝 Lambda code already in lambda/index.js...${NC}"
 
 # Install dependencies
 echo -e "${YELLOW}📚 Installing dependencies...${NC}"
