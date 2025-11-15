@@ -1,40 +1,33 @@
-cat > .gitignore << 'EOF'
-# ===== SUDOKOO Project .gitignore =====
+# ===== SUDOKOO AWS Project .gitignore =====
 
-# ===== AWS & Deployment =====
+# ===== AWS Deployment & Lambda =====
+lambda-package/
 *.zip
-lambda/node_modules/
-lambda/package-lock.json
-.aws/
-*.pem
-*.key
+node_modules/
+package-lock.json
 
 # ===== Environment & Secrets =====
 .env
-.env.local
-.env.production
-config/secrets.json
-aws-credentials.txt
+.env.*
+.aws/
+aws-credentials.*
+config/secrets.*
 
-# ===== Build & Distribution =====
+# ===== Build & Temporary Files =====
 dist/
 build/
-*.tgz
+*.tmp
+*.temp
+.cache/
 
 # ===== Logs =====
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-cloudformation-logs/
 
 # ===== Operating System =====
 .DS_Store
 .DS_Store?
 ._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
 # ===== IDE & Editors =====
@@ -42,25 +35,10 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-*~
-
-# ===== Temporary Files =====
-*.tmp
-*.temp
-.cache/
 
 # ===== Backups =====
 *.backup
 *.bak
-js/app.js.backup
-
-# ===== CloudFormation =====
-# Keep templates but ignore outputs
-cloudformation-outputs.json
-stack-parameters.json
 
 # ===== Documentation Builds =====
-docs/_build/
 *.pdf
-
-EOF

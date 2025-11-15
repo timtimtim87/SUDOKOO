@@ -261,7 +261,7 @@ class SudokooApp {
         
         try {
             // TODO: Replace with your actual API Gateway endpoint
-            const apiEndpoint = '/api/scan-sudoku';
+            const apiEndpoint = 'https://qn7stfg9ag.execute-api.us-east-1.amazonaws.com/prod/scan-sudoku';
             
             const response = await fetch(apiEndpoint, {
                 method: 'POST',
